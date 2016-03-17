@@ -120,6 +120,24 @@ describe Cequel::Metal::Keyspace do
     end
   end
 
+  describe '#connections_per_remote_node' do
+    it 'returns the connections_per_remote_node setting for the cluster connection' do
+      connection = Cequel.connect(host: Cequel::SpecSupport::Helpers.host,
+                                  port: Cequel::SpecSupport::Helpers.port,
+                                  datacenter: 'current_datacenter',
+                                  connections_per_remote_node: 0)
+
+      expect(connection.connections_per_remote_node).to eq 0
+    end
+
+    it 'defaults to nil' do
+      connection = Cequel.connect(host: Cequel::SpecSupport::Helpers.host,
+                                  port: Cequel::SpecSupport::Helpers.port)
+
+      expect(connection.connections_per_remote_node).to be nil
+    end
+  end
+
   describe "#execute" do
     let(:statement) { "SELECT id FROM posts" }
 

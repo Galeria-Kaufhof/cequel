@@ -23,6 +23,8 @@ module Cequel
       attr_reader :port
       # @return [String] name of the current datacenter
       attr_reader :datacenter
+      # @return [Integer] number of connections to open to each remote node
+      attr_reader :connections_per_remote_node
       # @return Integer maximum number of retries to reconnect to Cassandra
       attr_reader :max_retries
       # @return Float delay between retries to reconnect to Cassandra
@@ -135,6 +137,7 @@ module Cequel
 
         @hosts, @port = extract_hosts_and_port(configuration)
         @datacenter   = extract_datacenter(configuration)
+        @connections_per_remote_node = extract_connections_per_remote_node(configuration)
         @credentials  = extract_credentials(configuration)
         @max_retries  = extract_max_retries(configuration)
         @retry_delay  = extract_retry_delay(configuration)
@@ -320,6 +323,10 @@ module Cequel
 
       def extract_datacenter(configuration)
         configuration.fetch(:datacenter, nil)
+      end
+
+      def extract_connections_per_remote_node(configuration)
+        configuration.fetch(:connections_per_remote_node, nil)
       end
 
       def extract_credentials(configuration)
