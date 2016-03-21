@@ -136,6 +136,8 @@ describe Cequel::Metal::Keyspace do
 
     context "with datacenter set" do
       let(:datacenter) { 'current_datacenter' }
+      let(:token_aware_policy) { double(:token_aware_policy).as_null_object }
+      let(:dc_aware_round_robin_policy) { double(:dc_aware_round_robin_policy) }
 
       it { is_expected.to be_a Hash }
       it { is_expected.to include(:load_balancing_policy) }
@@ -143,33 +145,28 @@ describe Cequel::Metal::Keyspace do
       describe "#[:load_balancing_policy]" do
         subject(:policy) { load_balancing_policy[:load_balancing_policy] }
 
-        it { is_expected.to be_a Cassandra::LoadBalancing::Policies::TokenAware }
-
-        describe "wrapped policy" do
-          subject(:inner_policy) { policy.instance_variable_get("@policy") }
-
-          it { is_expected.to be_a Cassandra::LoadBalancing::Policies::DCAwareRoundRobin }
-
-          describe "#datacenter" do
-            subject(:_datacenter) { inner_policy.instance_variable_get("@datacenter") }
-
-            it { is_expected.to eq datacenter }
-          end
+        before do
+          expect(Cassandra::LoadBalancing::Policies::DCAwareRoundRobin).to receive(:new)
+                                                                       .with(datacenter)
+                                                                       .and_return(dc_aware_round_robin_policy)
+          expect(Cassandra::LoadBalancing::Policies::TokenAware).to receive(:new)
+                                                                .with(dc_aware_round_robin_policy)
+                                                                .and_return(token_aware_policy)
         end
+
+        it { is_expected.to be token_aware_policy }
       end
 
       describe "client instantiation" do
-        subject(:client) { Cequel.connect(options).client }
+        let(:connect) { Cequel.connect(options) }
+        let(:policy) { connect.load_balancing_policy[:load_balancing_policy] }
+        subject(:client) { connect.client }
 
         it "passes load_balancing_policy to Cassandra.cluster" do
           expect(Cassandra).to receive(:cluster).and_wrap_original do |m, *options|
             options = options.first
             expect(options).to include(:load_balancing_policy)
-            policy = options[:load_balancing_policy]
-            expect(policy).to be_a Cassandra::LoadBalancing::Policies::TokenAware
-            inner_policy = policy.instance_variable_get("@policy")
-            expect(inner_policy).to be_a Cassandra::LoadBalancing::Policies::DCAwareRoundRobin
-            expect(inner_policy.instance_variable_get("@datacenter")).to eq datacenter
+            expect(options[:load_balancing_policy]).to be policy
             m.call(options)
           end
           subject
