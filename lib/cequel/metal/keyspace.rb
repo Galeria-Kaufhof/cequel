@@ -289,7 +289,7 @@ module Cequel
         {hosts: hosts, port: port}.tap do |options|
           options.merge!(credentials) if credentials
           options.merge!(ssl_config) if ssl_config
-          options.merge!(load_balancing_policy) if load_balancing_policy
+          options[:load_balancing_policy] = load_balancing_policy if load_balancing_policy
           options[:connections_per_remote_node] = connections_per_remote_node if connections_per_remote_node
         end
       end
@@ -304,9 +304,10 @@ module Cequel
 
       def build_load_balancing_policy
         return unless datacenter
+
         dc_aware_round_robin_policy = ::Cassandra::LoadBalancing::Policies::DCAwareRoundRobin.new(@datacenter)
-        token_aware_policy = ::Cassandra::LoadBalancing::Policies::TokenAware.new(dc_aware_round_robin_policy)
-        {load_balancing_policy: token_aware_policy}
+
+        ::Cassandra::LoadBalancing::Policies::TokenAware.new(dc_aware_round_robin_policy)
       end
 
       def extract_hosts_and_port(configuration)
