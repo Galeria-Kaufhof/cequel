@@ -121,21 +121,56 @@ describe Cequel::Metal::Keyspace do
   end
 
   describe '#connections_per_remote_node' do
-    it 'returns the connections_per_remote_node setting for the cluster connection' do
-      connection = Cequel.connect(host: Cequel::SpecSupport::Helpers.host,
-                                  port: Cequel::SpecSupport::Helpers.port,
-                                  datacenter: 'current_datacenter',
-                                  connections_per_remote_node: 0)
 
-      expect(connection.connections_per_remote_node).to eq 0
+    context 'with connections_per_remote_node set' do
+      subject(:connection) do
+        Cequel.connect(host: Cequel::SpecSupport::Helpers.host,
+                                    port: Cequel::SpecSupport::Helpers.port,
+                                    datacenter: 'current_datacenter',
+                                    connections_per_remote_node: 0)
+      end
+      it 'returns the connections_per_remote_node setting for the cluster connection' do
+        expect(connection.connections_per_remote_node).to eq 0
+      end
+
+      describe "client instantiation" do
+        subject(:client) { connection.client }
+
+        it "passes connections_per_remote_node to Cassandra.cluster" do
+          expect(Cassandra).to receive(:cluster).and_wrap_original do |m, *options|
+            options = options.first
+            expect(options).to include(:connections_per_remote_node)
+            expect(options[:connections_per_remote_node]).to eq 0
+            m.call(options)
+          end
+          subject
+        end
+      end
     end
 
-    it 'defaults to nil' do
-      connection = Cequel.connect(host: Cequel::SpecSupport::Helpers.host,
-                                  port: Cequel::SpecSupport::Helpers.port)
+    context "without connections_per_remote_node set" do
+      subject(:connection) do
+        Cequel.connect(host: Cequel::SpecSupport::Helpers.host,
+                       port: Cequel::SpecSupport::Helpers.port)
+      end
+      it 'defaults to nil' do
+        expect(connection.connections_per_remote_node).to be nil
+      end
 
-      expect(connection.connections_per_remote_node).to be nil
+      describe "client instantiation" do
+        subject(:client) { connection.client }
+
+        it "does not pass connections_per_remote_node to Cassandra.cluster" do
+          expect(Cassandra).to receive(:cluster).and_wrap_original do |m, *options|
+            options = options.first
+            expect(options).to_not include(:connections_per_remote_node)
+            m.call(options)
+          end
+          subject
+        end
+      end
     end
+
   end
 
   describe "#load_balancing_policy" do
