@@ -104,20 +104,28 @@ describe Cequel::Metal::Keyspace do
     end
   end
 
-  describe '#datacenter' do
+  shared_context 'with fake cluster instance' do
     let(:cluster) { double(:cluster) }
 
     before(:each) do
       allow(cluster).to receive(:connect).with(anything)
     end
+  end
+
+  describe '#datacenter' do
+    include_context 'with fake cluster instance'
+
+    let(:connection) { Cequel.connect(connection_options) }
+    subject(:return_value) { connection.datacenter }
 
     context 'with datacenter set' do
       let(:datacenter) { 'current_datacenter' }
-
-      subject(:connection) do
-        Cequel.connect(host: Cequel::SpecSupport::Helpers.host,
-                       port: Cequel::SpecSupport::Helpers.port,
-                       datacenter: datacenter)
+      let(:connection_options) do
+        {
+          host: Cequel::SpecSupport::Helpers.host,
+          port: Cequel::SpecSupport::Helpers.port,
+          datacenter: datacenter
+        }
       end
 
       it 'returns the datacenter setting for the cluster connection' do
@@ -140,9 +148,11 @@ describe Cequel::Metal::Keyspace do
     end
 
     context 'without datacenter set' do
-      subject(:connection) do
-        Cequel.connect(host: Cequel::SpecSupport::Helpers.host,
-                       port: Cequel::SpecSupport::Helpers.port)
+      let(:connection_options) do
+        {
+          host: Cequel::SpecSupport::Helpers.host,
+          port: Cequel::SpecSupport::Helpers.port
+        }
       end
 
       it 'defaults to nil' do
@@ -165,123 +175,119 @@ describe Cequel::Metal::Keyspace do
   end
 
   describe '#connections_per_remote_node' do
+    include_context 'with fake cluster instance'
+
+    let(:connection) { Cequel.connect(connection_options) }
+    subject(:return_value) { connection.connnections_per_remote_node }
+
     context 'with connections_per_remote_node set' do
-      subject(:connection) do
-        Cequel.connect(host: Cequel::SpecSupport::Helpers.host,
-                                    port: Cequel::SpecSupport::Helpers.port,
-                                    datacenter: 'current_datacenter',
-                                    connections_per_remote_node: 0)
+      let(:connection_options) do
+        {
+          host: Cequel::SpecSupport::Helpers.host,
+          port: Cequel::SpecSupport::Helpers.port,
+          connections_per_remote_node: 0
+        }
       end
 
       it 'returns the connections_per_remote_node setting for the cluster connection' do
         expect(connection.connections_per_remote_node).to eq 0
       end
 
-      describe "client instantiation" do
+      describe 'client instantiation' do
         subject(:client) { connection.client }
 
-        it "passes connections_per_remote_node to Cassandra.cluster" do
-          expect(Cassandra).to receive(:cluster).and_wrap_original do |m, *options|
-            options = options.first
+        it 'passes connections_per_remote_node to Cassandra.cluster' do
+          expect(Cassandra).to receive(:cluster) do |options|
             expect(options).to include(:connections_per_remote_node)
             expect(options[:connections_per_remote_node]).to eq 0
-            m.call(options)
+            cluster
           end
-          subject
+
+          client
         end
       end
     end
 
-    context "without connections_per_remote_node set" do
-      subject(:connection) do
-        Cequel.connect(host: Cequel::SpecSupport::Helpers.host,
-                       port: Cequel::SpecSupport::Helpers.port)
+    context 'without connections_per_remote_node set' do
+      let(:connection_options) do
+        {
+          host: Cequel::SpecSupport::Helpers.host,
+          port: Cequel::SpecSupport::Helpers.port
+        }
       end
+
       it 'defaults to nil' do
         expect(connection.connections_per_remote_node).to be nil
       end
 
-      describe "client instantiation" do
+      describe 'client instantiation' do
         subject(:client) { connection.client }
 
-        it "does not pass connections_per_remote_node to Cassandra.cluster" do
-          expect(Cassandra).to receive(:cluster).and_wrap_original do |m, *options|
-            options = options.first
+        it 'does not pass connections_per_remote_node to Cassandra.cluster' do
+          expect(Cassandra).to receive(:cluster) do |options|
             expect(options).to_not include(:connections_per_remote_node)
-            m.call(options)
+            cluster
           end
-          subject
+
+          client
         end
       end
     end
-
   end
 
-  describe "#load_balancing_policy" do
-    let(:datacenter) { nil }
-    let(:options) do
-      {
-        host: Cequel::SpecSupport::Helpers.host,
-        port: Cequel::SpecSupport::Helpers.port,
-        datacenter: datacenter
-      }
-    end
+  describe '#load_balancing_policy' do
+    include_context 'with fake cluster instance'
 
-    let(:cluster) { double(:cluster) }
+    let(:connection) { Cequel.connect(connection_options) }
+    subject(:return_value) { connection.load_balancing_policy }
 
-    before do
-      allow(cluster).to receive(:connect).with(anything)
-    end
-
-    subject(:load_balancing_policy) do
-      Cequel.connect(options).load_balancing_policy
-    end
-
-    context "with datacenter set" do
-      let(:datacenter) { 'current_datacenter' }
-      let(:token_aware_policy) { double(:token_aware_policy).as_null_object }
-      let(:dc_aware_round_robin_policy) { double(:dc_aware_round_robin_policy) }
-
-
-      before do
-        expect(Cassandra::LoadBalancing::Policies::DCAwareRoundRobin).to receive(:new)
-                                                                           .with(datacenter)
-                                                                           .and_return(dc_aware_round_robin_policy)
-        expect(Cassandra::LoadBalancing::Policies::TokenAware).to receive(:new)
-                                                                    .with(dc_aware_round_robin_policy)
-                                                                    .and_return(token_aware_policy)
+    context 'with load_balancing_policy set' do
+      let(:load_balancing_policy) { double(:load_balancing_policy) }
+      let(:connection_options) do
+        {
+          host: Cequel::SpecSupport::Helpers.host,
+          port: Cequel::SpecSupport::Helpers.port,
+          load_balancing_policy: load_balancing_policy
+        }
       end
 
-      it { is_expected.to be token_aware_policy }
+      it { is_expected.to be load_balancing_policy }
 
-      describe "client instantiation" do
-        let(:connect) { Cequel.connect(options) }
-        let(:policy) { connect.load_balancing_policy }
-        subject(:client) { connect.client }
+      describe 'client instantiation' do
+        subject(:client) { connection.client }
 
-        it "passes load_balancing_policy to Cassandra.cluster" do
+        it 'passes load_balancing_policy to Cassandra.cluster' do
           expect(Cassandra).to receive(:cluster) do |options|
             expect(options).to include(:load_balancing_policy)
-            expect(options[:load_balancing_policy]).to be policy
+            expect(options[:load_balancing_policy]).to be load_balancing_policy
             cluster
           end
-          subject
+
+          client
         end
       end
     end
 
-    context "without a datacenter" do
-      it { is_expected.to be_nil }
+    context 'without a load_balancing_policy set' do
+      let(:connection_options) do
+        {
+          host: Cequel::SpecSupport::Helpers.host,
+          port: Cequel::SpecSupport::Helpers.port,
+        }
+      end
 
-      describe "client instantiation" do
-        subject(:client) { Cequel.connect(options).client }
+      it { is_expected.to be nil }
 
-        it "does not pass load_balancing_policy to Cassandra.cluster" do
+      describe 'client instantiation' do
+        subject(:client) { connection.client }
+
+        it 'does not pass load_balancing_policy to Cassandra.cluster' do
           expect(Cassandra).to receive(:cluster) do |options|
-            expect(options).to_not include(:load_balancing_policy)
+            expect(options).not_to include(:load_balancing_policy)
             cluster
           end
-          subject
+
+          client
         end
       end
     end

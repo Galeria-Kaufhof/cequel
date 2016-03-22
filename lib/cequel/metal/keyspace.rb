@@ -148,7 +148,7 @@ module Cequel
         @name = configuration[:keyspace]
         @default_consistency = configuration[:default_consistency].try(:to_sym)
 
-        @load_balancing_policy = build_load_balancing_policy
+        @load_balancing_policy = extract_load_balancing_policy(configuration)
         # reset the connections
         clear_active_connections!
       end
@@ -303,14 +303,6 @@ module Cequel
         current_batch || self
       end
 
-      def build_load_balancing_policy
-        return unless datacenter
-
-        dc_aware_round_robin_policy = ::Cassandra::LoadBalancing::Policies::DCAwareRoundRobin.new(@datacenter)
-
-        ::Cassandra::LoadBalancing::Policies::TokenAware.new(dc_aware_round_robin_policy)
-      end
-
       def extract_hosts_and_port(configuration)
         hosts, ports = [], Set[]
         ports << configuration[:port] if configuration.key?(:port)
@@ -341,6 +333,10 @@ module Cequel
 
       def extract_connections_per_remote_node(configuration)
         configuration.fetch(:connections_per_remote_node, nil)
+      end
+
+      def extract_load_balancing_policy(configuration)
+        configuration.fetch(:load_balancing_policy, nil)
       end
 
       def extract_credentials(configuration)
