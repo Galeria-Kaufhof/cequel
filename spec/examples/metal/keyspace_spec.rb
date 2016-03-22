@@ -104,24 +104,67 @@ describe Cequel::Metal::Keyspace do
     end
   end
 
-  describe "#datacenter" do
-    it "datacenter setting get extracted correctly for sending to cluster" do
-      connect = Cequel.connect host: Cequel::SpecSupport::Helpers.host,
-                           port: Cequel::SpecSupport::Helpers.port,
-                           datacenter: 'current_datacenter'
+  describe '#datacenter' do
+    let(:cluster) { double(:cluster) }
 
-      expect(connect.datacenter).to eq('current_datacenter')
+    before(:each) do
+      allow(cluster).to receive(:connect).with(anything)
     end
 
-    it "default is nil" do
-      connect = Cequel.connect host: Cequel::SpecSupport::Helpers.host,
-                           port: Cequel::SpecSupport::Helpers.port
-      expect(connect.datacenter).to be_nil
+    context 'with datacenter set' do
+      let(:datacenter) { 'current_datacenter' }
+
+      subject(:connection) do
+        Cequel.connect(host: Cequel::SpecSupport::Helpers.host,
+                       port: Cequel::SpecSupport::Helpers.port,
+                       datacenter: datacenter)
+      end
+
+      it 'returns the datacenter setting for the cluster connection' do
+        expect(connection.datacenter).to eq(datacenter)
+      end
+
+      describe 'client instantiation' do
+        subject(:client) { connection.client }
+
+        it 'passes datacenter to Cassandra.cluster' do
+          expect(Cassandra).to receive(:cluster) do |options|
+            expect(options).to include(:datacenter)
+            expect(options[:datacenter]).to eq datacenter
+            cluster
+          end
+
+          client
+        end
+      end
+    end
+
+    context 'without datacenter set' do
+      subject(:connection) do
+        Cequel.connect(host: Cequel::SpecSupport::Helpers.host,
+                       port: Cequel::SpecSupport::Helpers.port)
+      end
+
+      it 'defaults to nil' do
+        expect(connection.datacenter).to be nil
+      end
+
+      describe 'client instantiation' do
+        subject(:client) { connection.client }
+
+        it "doesn't pass datacenter to Cassandra.cluster" do
+          expect(Cassandra).to receive(:cluster) do |options|
+            expect(options).not_to include(:datacenter)
+            cluster
+          end
+
+          client
+        end
+      end
     end
   end
 
   describe '#connections_per_remote_node' do
-
     context 'with connections_per_remote_node set' do
       subject(:connection) do
         Cequel.connect(host: Cequel::SpecSupport::Helpers.host,
@@ -129,6 +172,7 @@ describe Cequel::Metal::Keyspace do
                                     datacenter: 'current_datacenter',
                                     connections_per_remote_node: 0)
       end
+
       it 'returns the connections_per_remote_node setting for the cluster connection' do
         expect(connection.connections_per_remote_node).to eq 0
       end

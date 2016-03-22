@@ -289,6 +289,7 @@ module Cequel
         {hosts: hosts, port: port}.tap do |options|
           options.merge!(credentials) if credentials
           options.merge!(ssl_config) if ssl_config
+          options[:datacenter] = datacenter if datacenter
           options[:load_balancing_policy] = load_balancing_policy if load_balancing_policy
           options[:connections_per_remote_node] = connections_per_remote_node if connections_per_remote_node
         end
