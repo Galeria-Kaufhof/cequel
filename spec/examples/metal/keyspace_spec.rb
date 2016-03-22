@@ -138,6 +138,78 @@ describe Cequel::Metal::Keyspace do
     end
   end
 
+  describe "#load_balancing_policy" do
+    let(:datacenter) { nil }
+    let(:options) do
+      {
+        host: Cequel::SpecSupport::Helpers.host,
+        port: Cequel::SpecSupport::Helpers.port,
+        datacenter: datacenter
+      }
+    end
+
+    subject(:load_balancing_policy) do
+      Cequel.connect(options).load_balancing_policy
+    end
+
+    context "with datacenter set" do
+      let(:datacenter) { 'current_datacenter' }
+      let(:token_aware_policy) { double(:token_aware_policy).as_null_object }
+      let(:dc_aware_round_robin_policy) { double(:dc_aware_round_robin_policy) }
+
+      it { is_expected.to be_a Hash }
+      it { is_expected.to include(:load_balancing_policy) }
+
+      describe "#[:load_balancing_policy]" do
+        subject(:policy) { load_balancing_policy[:load_balancing_policy] }
+
+        before do
+          expect(Cassandra::LoadBalancing::Policies::DCAwareRoundRobin).to receive(:new)
+                                                                       .with(datacenter)
+                                                                       .and_return(dc_aware_round_robin_policy)
+          expect(Cassandra::LoadBalancing::Policies::TokenAware).to receive(:new)
+                                                                .with(dc_aware_round_robin_policy)
+                                                                .and_return(token_aware_policy)
+        end
+
+        it { is_expected.to be token_aware_policy }
+      end
+
+      describe "client instantiation" do
+        let(:connect) { Cequel.connect(options) }
+        let(:policy) { connect.load_balancing_policy[:load_balancing_policy] }
+        subject(:client) { connect.client }
+
+        it "passes load_balancing_policy to Cassandra.cluster" do
+          expect(Cassandra).to receive(:cluster).and_wrap_original do |m, *options|
+            options = options.first
+            expect(options).to include(:load_balancing_policy)
+            expect(options[:load_balancing_policy]).to be policy
+            m.call(options)
+          end
+          subject
+        end
+      end
+    end
+
+    context "without a datacenter" do
+      it { is_expected.to be_nil }
+
+      describe "client instantiation" do
+        subject(:client) { Cequel.connect(options).client }
+
+        it "does not pass load_balancing_policy to Cassandra.cluster" do
+          expect(Cassandra).to receive(:cluster).and_wrap_original do |m, *options|
+            options = options.first
+            expect(options).to_not include(:load_balancing_policy)
+            m.call(options)
+          end
+          subject
+        end
+      end
+    end
+  end
+
   describe "#execute" do
     let(:statement) { "SELECT id FROM posts" }
 
